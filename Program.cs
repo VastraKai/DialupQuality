@@ -8,7 +8,7 @@ namespace DialupQuality;
 
 public static class Program
 {
-    public static Mem mem;
+    //public static Mem mem;
 
     public static void Main()
     {
@@ -27,7 +27,7 @@ public static class Program
         Console.Log.WriteLine("SSQuality", "Attempting to find Discord Voice node...");
         Process dcProc = null;
         ProcessModule dcMod = null;
-        foreach (Process proc in Process.GetProcessesByName("discord"))
+        foreach (Process proc in Process.GetProcessesByName("discorddevelopment"))
         {
             //Console.Log.WriteLine("SSQuality", $"{proc.ProcessName} | {proc.Id} (0x{proc.Id:X}) | {proc.MainModule?.FileName} ");
             foreach (ProcessModule mod in proc.Modules)
@@ -41,12 +41,10 @@ public static class Program
                 }
             }
         }
+        
+        Console.Log.WriteLine("SSQuality", "Attempting to find signature...");
 
-        Console.Log.WriteLine("SSQuality", "Attempting to find signatures...");
-
-        // 8B ? ? ? ? ? 8B ? ? ? ? ? 83 ? ? 8B ? ? 89 ? ? ? ? F2 0? // Resolution
-        // 8B ? ? 8B ? ? 39 ? 0F 4? ? 89 ? ? 89 ? ? 80 // FPS
-        mem = new Mem();
+        var mem = new Mem();
         if (dcProc != null) mem.OpenProcess(dcProc.Id);
         else
         {
@@ -55,21 +53,28 @@ public static class Program
 
         Imps.Handle = (nuint)mem.MProc.Handle;
         //dcProc.ResetModMemory(dcMod?.ModuleName);
-        string resSig = "8B 8? ? ? ? ? 8B ? ? ? ? ? 83 E? ? 8B";
-        byte[] resBytes = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x8B, 0x05, 0x17, 0x00, 0x07, 0x0D, 0x89, 0x86, 0x94, 0x00, 0x00, 0x00, 0x8B, 0x86, 0x94, 0x00, 0x00, 0x00 };
-        int resReplaceCount = 0x6;
-        string fpsSig = "8B ? ? 8B ? ? 39 ? 0F 4? ? 89 ? ? 89 ? ? 80";
-        byte[] fpsBytes = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x8B, 0x3D, 0x14, 0x00, 0xEE, 0x0C, 0x89, 0x79, 0x08, 0x8B, 0x79, 0x08, 0x8B, 0x55, 0xE4 };
-        int fpsReplaceCount = 0x6; 
+        string resSig = "48 8B ? ? ? ? ? 4C 8B ? ? ? ? ? 48 8D ? ? ? 4C 8D";
+        byte[] resBytes = new byte[]
+        {
+            0x48, 0x8B, 0x15, 0x13, 0x00, 0x00, 0x00, 0x48,
+            0x89, 0x96, 0xF8, 0x00, 0x00, 0x00, 0x48, 0x8B,
+            0x96, 0xF8, 0x00, 0x00, 0x00
+        };
+        int resReplaceCount = 0x7;
         nuint resAddr = mem.ScanForSig(resSig, module: dcMod?.ModuleName).FirstOrDefault();
+        if (resAddr == 0)
+        {
+            Console.Log.WriteLine("SSQuality", "Failed to find resolution address.", LogLevel.Critical);
+            Console.WaitForEnter("Press enter to exit...");
+            return;
+        }
         Console.Log.WriteLine("SSQuality", $"Found resolution address: 0x{resAddr:X}");
-        nuint fpsAddr = mem.ScanForSig(fpsSig, module: dcMod?.ModuleName).FirstOrDefault();
-        Console.Log.WriteLine("SSQuality", $"Found fps address: 0x{fpsAddr:X}");
+        
+        
+        Console.Log.WriteLine("SSQuality", "&vAttempting to hook resolution...");
+
         byte[] resOrig = mem.ReadArrayMemory<byte>($"{resAddr:X}", resReplaceCount);
-        byte[] fpsOrig = mem.ReadArrayMemory<byte>($"{fpsAddr:X}", fpsReplaceCount);
-        nuint fpsVarOffset = (nuint)fpsBytes.Length + 5;
         nuint resVarOffset = (nuint)resBytes.Length + 5; // The plus 5 here is to account for the jmp instruction
-        nuint fpsVars = 0;
         nuint resVars = 0;
         if (resAddr != 0)
         {
@@ -82,42 +87,35 @@ public static class Program
             });
             Detours.ResDetour.Hook();
         }
-        else Console.Log.WriteLine("SSQuality", "Failed to find resolution address.");
-        if (fpsAddr != 0)
-        {
-            Detours.FpsDetour = new($"{fpsAddr:X}", fpsOrig, fpsBytes, fpsReplaceCount, Mem.DetourType.Jump, m: mem, mutate: alloc =>
-            {
-                alloc += fpsVarOffset;
-                fpsVars = alloc;
-                mem.WriteAnyMemory(alloc, 60);
-            });
-            Detours.FpsDetour.Hook();
-        }
-        else Console.Log.WriteLine("SSQuality", "Failed to find fps address.");
-        External<int> fpsVar = new(fpsVars, m: mem);
+        else Console.Log.WriteLine("SSQuality", "&cFailed to find resolution address.");
+       
         External<int> resVar = new(resVars, m: mem);
+        
         int res = resVar.Value;
-        int fps = fpsVar.Value;
+        
         Console.KeyOutput[] outputs = {
             new Console.KeyOutput(ConsoleKey.D1, "Resolution"),
-            new Console.KeyOutput(ConsoleKey.D2, "FPS"),
-            new Console.KeyOutput(ConsoleKey.D3, "Exit")
+            new Console.KeyOutput(ConsoleKey.D2, "Exit")
         }; 
-        Thread.Sleep(3000);
+        
+        Console.Log.WriteLine("SSQuality", "&6Successfully hooked resolution.");
+        
+        Thread.Sleep(1000);
         while (true)
         {
             Console.SwitchToAlternativeBuffer();
+            Console.Clear();
             Console.WriteLine("[ResMenu]");
             Console.Write($"1) Resolution: {res}");
             IntVec2 resTextPos = new (Console.CursorLeft - res.ToString().Length, Console.CursorTop);
             Console.WriteLine();
-            Console.Write($"2) FPS: {fps}");
-            IntVec2 fpsTextPos = new(Console.CursorLeft - fps.ToString().Length, Console.CursorTop);
-            Console.WriteLine();
-            Console.WriteLine("3) Exit");
+            Console.WriteLine("2) Exit");
             ConsoleKey key = Console.ReadKey("SSQuality", "Select an option: ", outputs);
             switch (key)
             {
+                default:
+                    Console.Log.WriteLine("SSQuality", "Invalid key.");
+                    break;
                 case ConsoleKey.D1:
                     Console.CursorLeft = resTextPos.X;
                     Console.CursorTop = resTextPos.Y;
@@ -137,41 +135,26 @@ public static class Program
 
                     break;
                 case ConsoleKey.D2:
-                    Console.CursorLeft = fpsTextPos.X;
-                    Console.CursorTop = fpsTextPos.Y;
-                    Console.Write(" ".Repeat(fps.ToString().Length));
-                    Console.CursorLeft = fpsTextPos.X;
-                    Console.CursorTop = fpsTextPos.Y;
-                    string newFps = Console.ReadLine();
-                    if (newFps != null)
-                    {
-                        if (int.TryParse(newFps, out int fpsInt))
-                        {
-                            fps = fpsInt;
-                            fpsVar.Value = fps;
-                        }
-                        else Console.Log.WriteLine("SSQuality", "Failed to parse new FPS.");
-                    }
-
-                    break;
-                case ConsoleKey.D3:
                     Console.Log.WriteLine("SSQuality", "Exiting...");
                     goto exit;
             }
         }
         exit:
-        if (Detours.ResDetour != null && Detours.ResDetour.IsHooked)
+        try
         {
+            // Write the original bytes back to the address
+            Console.Log.WriteLine("SSQuality", $"&bWriting original bytes back to &v{resAddr:X}&b...");
+            mem.WriteArrayMemory($"{resAddr:X}", resOrig);
+            Console.Log.WriteLine("SSQuality", "&vUnhooking resolution...");
             Detours.ResDetour.Unhook();
-            Console.Log.WriteLine("SSQuality", "Unhooked resolution.");
-        }
-        if (Detours.FpsDetour != null && Detours.FpsDetour.IsHooked)
+            Console.Log.WriteLine("SSQuality", "&6Successfully unhooked resolution.");
+        } catch (Exception ex)
         {
-            Detours.FpsDetour.Unhook();
-            Console.Log.WriteLine("SSQuality", "Unhooked FPS.");
+            Console.Log.WriteLine("SSQuality", $"Failed to unhook resolution: {ex}", LogLevel.Critical);
         }
-        Thread.Sleep(2500);
+
+        Console.Log.WriteLine("SSQuality", "&cExiting!");
+        Thread.Sleep(1000);
         Console.SwitchToMainBuffer();
-        Thread.Sleep(2500);
     }
 }

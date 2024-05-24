@@ -1,3 +1,6 @@
 [submodule "extendedconsole"]
 	path = extendedconsole
 	url = https://github.com/vastrakai/extendedconsole
+[submodule "memory.andy.dll"]
+	path = memory.andy.dll
+	url = https://github.com/NoSkillPureAndy/memory.andy.dll
