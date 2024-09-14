@@ -143,7 +143,7 @@ public static class Program
 
         Imps.Handle = (nuint)mem.MProc.Handle;
         //dcProc.ResetModMemory(dcMod?.ModuleName);
-        string resSig = "48 8B ? ? ? ? ? 4C 8B ? ? ? ? ? 48 8D ? ? ? 4C 8D";
+        string resSig = "48 8B ? ? ? ? ? 4C 8B ? ? ? ? ? 48 89 ? 4C 09";
         string bitrateSig = "8B 8F ? ? ? ? 81 F9 ? ? ? ? 74 ? 83 F9 ? 75 ? 44 8B";
         byte[] resBytes = new byte[]
         {

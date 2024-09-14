@@ -4,3 +4,6 @@
 [submodule "memory.andy.dll"]
 	path = memory.andy.dll
 	url = https://github.com/NoSkillPureAndy/memory.andy.dll
+[submodule "ExtendedConsole"]
+	path = ExtendedConsole
+	url = https://github.com/VastraKai/ExtendedConsole
